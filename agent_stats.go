@@ -2,6 +2,7 @@ package ice
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 )
 
@@ -12,11 +13,15 @@ func (a *Agent) GetCandidatePairsStats() []CandidatePairStats {
 		result := make([]CandidatePairStats, 0, len(agent.checklist))
 		for _, cp := range agent.checklist {
 			stat := CandidatePairStats{
-				Timestamp:         time.Now(),
-				LocalCandidateID:  cp.Local.ID(),
-				RemoteCandidateID: cp.Remote.ID(),
-				State:             cp.state,
-				Nominated:         cp.nominated,
+				Timestamp:            time.Now(),
+				LocalCandidateID:     cp.Local.ID(),
+				RemoteCandidateID:    cp.Remote.ID(),
+				State:                cp.state,
+				Nominated:            cp.nominated,
+				TotalRoundTripTime:   time.Duration(atomic.LoadInt64(&cp.totalRoundTripTimeNanos)).Seconds(),
+				CurrentRoundTripTime: time.Duration(atomic.LoadInt64(&cp.currentRoundTripTimeNanos)).Seconds(),
+				RequestsSent:         atomic.LoadUint64(&cp.requestsSent),
+				ResponsesReceived:    atomic.LoadUint64(&cp.responsesReceived),
 				// PacketsSent uint32
 				// PacketsReceived uint32
 				// BytesSent uint64
@@ -26,14 +31,10 @@ func (a *Agent) GetCandidatePairsStats() []CandidatePairStats {
 				// FirstRequestTimestamp time.Time
 				// LastRequestTimestamp time.Time
 				// LastResponseTimestamp time.Time
-				// TotalRoundTripTime float64
-				// CurrentRoundTripTime float64
 				// AvailableOutgoingBitrate float64
 				// AvailableIncomingBitrate float64
 				// CircuitBreakerTriggerCount uint32
 				// RequestsReceived uint64
-				// RequestsSent uint64
-				// ResponsesReceived uint64
 				// ResponsesSent uint64
 				// RetransmissionsReceived uint64
 				// RetransmissionsSent uint64

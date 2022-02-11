@@ -2,6 +2,7 @@ package ice
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -130,4 +131,19 @@ func TestCandidatePairEquality(t *testing.T) {
 func TestNilCandidatePairString(t *testing.T) {
 	var nilCandidatePair *CandidatePair
 	assert.Equal(t, nilCandidatePair.String(), "")
+}
+
+func TestCandidatePairStatsGeneration(t *testing.T) {
+	pair := newCandidatePair(hostCandidate(), srflxCandidate(), false)
+	pair.updateStatsFromSuccessResponse(time.Now().Add(-30 * time.Millisecond))
+	assert.Equal(t, uint64(1), pair.responsesReceived)
+	assert.GreaterOrEqual(t, pair.totalRoundTripTimeNanos, 30*time.Millisecond)
+	assert.Equal(t, pair.totalRoundTripTimeNanos, pair.currentRoundTripTimeNanos)
+
+	previousTotal := pair.totalRoundTripTimeNanos
+
+	pair.updateStatsFromSuccessResponse(time.Now().Add(-50 * time.Millisecond))
+	assert.Equal(t, uint64(2), pair.responsesReceived)
+	assert.GreaterOrEqual(t, pair.totalRoundTripTimeNanos, 80*time.Millisecond)
+	assert.Equal(t, pair.totalRoundTripTimeNanos-previousTotal, pair.currentRoundTripTimeNanos)
 }

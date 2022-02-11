@@ -610,7 +610,7 @@ func (a *Agent) pingAllCandidates() {
 			a.log.Tracef("max requests reached for pair %s, marking it as failed\n", p)
 			p.state = CandidatePairStateFailed
 		} else {
-			a.selector.PingCandidate(p.Local, p.Remote)
+			a.selector.PingCandidatePair(p)
 			p.bindingRequestCount++
 		}
 	}
@@ -705,7 +705,7 @@ func (a *Agent) checkKeepalive() {
 			(time.Since(selectedPair.Remote.LastReceived()) > a.keepaliveInterval)) {
 		// we use binding request instead of indication to support refresh consent schemas
 		// see https://tools.ietf.org/html/rfc7675
-		a.selector.PingCandidate(selectedPair.Local, selectedPair.Remote)
+		a.selector.PingCandidatePair(selectedPair)
 	}
 }
 
@@ -951,18 +951,20 @@ func (a *Agent) findRemoteCandidate(networkType NetworkType, addr net.Addr) Cand
 	return nil
 }
 
-func (a *Agent) sendBindingRequest(m *stun.Message, local, remote Candidate) {
-	a.log.Tracef("ping STUN from %s to %s\n", local.String(), remote.String())
+func (a *Agent) sendBindingRequest(m *stun.Message, pair *CandidatePair) {
+	a.log.Tracef("ping STUN from %s to %s\n", pair.Local.String(), pair.Remote.String())
 
 	a.invalidatePendingBindingRequests(time.Now())
 	a.pendingBindingRequests = append(a.pendingBindingRequests, bindingRequest{
 		timestamp:      time.Now(),
 		transactionID:  m.TransactionID,
-		destination:    remote.addr(),
+		destination:    pair.Remote.addr(),
 		isUseCandidate: m.Contains(stun.AttrUseCandidate),
 	})
 
-	a.sendSTUN(m, local, remote)
+	atomic.AddUint64(&pair.requestsSent, 1)
+
+	a.sendSTUN(m, pair.Local, pair.Remote)
 }
 
 func (a *Agent) sendBindingSuccess(m *stun.Message, local, remote Candidate) {

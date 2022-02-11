@@ -2,6 +2,8 @@ package ice
 
 import (
 	"fmt"
+	"sync/atomic"
+	"time"
 
 	"github.com/pion/stun"
 )
@@ -24,6 +26,13 @@ type CandidatePair struct {
 	bindingRequestCount uint16
 	state               CandidatePairState
 	nominated           bool
+
+	// The following fields are for generating candidate pair statistics, and need to be accessed through atomics.
+	// The durations are stored as int64 to be used with atomic.AddInt64 and atomic.LoadInt64
+	requestsSent              uint64
+	responsesReceived         uint64
+	currentRoundTripTimeNanos int64
+	totalRoundTripTimeNanos   int64
 }
 
 func (p *CandidatePair) String() string {
@@ -88,6 +97,13 @@ func (p *CandidatePair) priority() uint64 {
 
 func (p *CandidatePair) Write(b []byte) (int, error) {
 	return p.Local.writeTo(b, p.Remote)
+}
+
+func (p *CandidatePair) updateStatsFromSuccessResponse(requestTimestamp time.Time) {
+	roundTripTime := time.Since(requestTimestamp)
+	atomic.StoreInt64(&p.currentRoundTripTimeNanos, roundTripTime.Nanoseconds())
+	atomic.AddInt64(&p.totalRoundTripTimeNanos, roundTripTime.Nanoseconds())
+	atomic.AddUint64(&p.responsesReceived, 1)
 }
 
 func (a *Agent) sendSTUN(msg *stun.Message, local, remote Candidate) {
